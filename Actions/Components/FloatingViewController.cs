@@ -75,7 +75,7 @@ namespace Actions.Components
 
         public bool Moveable
         {
-            get => _floatingScreen?.ShowHandle ?? false;
+            get=> _floatingScreen != null && _floatingScreen.ShowHandle;
             set
             {
                 if (_floatingScreen != null)
