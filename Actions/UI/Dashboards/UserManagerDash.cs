@@ -276,7 +276,7 @@ namespace Actions.UI.Dashboards
             if (!(_lastClickedUser is TwitchActionUser))
                 return;
 
-            float? timeoutDuration = SelectedAction switch
+            uint? timeoutDuration = SelectedAction switch
             {
                 ManagementAction.Seconds1 => 1,
                 ManagementAction.Seconds30 => 30,

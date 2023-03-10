@@ -142,9 +142,27 @@ namespace Actions.Twitch
             return Task.CompletedTask;
         }
 
-        public Task SendCommand(string command)
+        public Task SendCommand(string commandRaw)
         {
-            return SendMessage('/' + command);
+            commandRaw = commandRaw.Trim();
+            var firstSpaceIndex = commandRaw.IndexOf(' ');
+            var cmd = firstSpaceIndex == -1 ? commandRaw : commandRaw.Substring(0, firstSpaceIndex);
+
+            return cmd switch
+            {
+                "announce" => InteractWithHelix((helix, channelId) => helix.SendChatAnnouncement(channelId, commandRaw.Substring(firstSpaceIndex + 1))),
+                _ => Task.CompletedTask
+            };
+        }
+        
+        public Task InteractWithHelix(Func<ITwitchHelixApiService, string, Task> func)
+        {
+            if (Initialized)
+            {
+                return func(_twitchHelixApiService, _channel!.Id);
+            }
+
+            return Task.CompletedTask;
         }
         
         private void OnConfigUpdated(Config config)

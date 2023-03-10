@@ -7,6 +7,6 @@ namespace Actions.Dashboard
         string ID { get; }
         string Name { get; }
         string? ProfilePictureURL { get; }
-        Task Ban(float? length);
+        Task Ban(uint? length);
     }
 }
