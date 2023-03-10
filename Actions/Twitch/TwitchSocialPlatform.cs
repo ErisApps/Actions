@@ -50,26 +50,19 @@ namespace Actions.Twitch
         {
             _chatCoreInstance = CatCoreInstance.Create();
             _twitchService = _chatCoreInstance.RunTwitchServices();
+            
+            _twitchService.OnTextMessageReceived += MessageReceived;
+
             _twitchHelixApiService = _twitchService.GetHelixApiService();
             _twitchChannelManagementService = _twitchService.GetChannelManagementService();
-            
-            Channels = _twitchChannelManagementService.GetAllActiveChannels();
-
-            if (_config.ChannelId != null)
-            {
-                _channel = Channels.FirstOrDefault(twitchChannel => twitchChannel.Id == _config.ChannelId);
-            }
-            
-            if (_channel == null)
-            {
-                _channel = (TwitchChannel?)_twitchService.DefaultChannel ?? Channels.FirstOrDefault();
-                _config.ChannelId = _channel?.Id;
-            }
-
-            _siraLog.Debug($"Channel: {_channel?.Name ?? "None"}");
-
-            _twitchService.OnTextMessageReceived += MessageReceived;
             _twitchChannelManagementService.ChannelsUpdated += TwitchChannelManagementServiceOnChannelsUpdated;
+
+            
+            _twitchService.OnAuthenticatedStateChanged += TwitchServiceOnOnAuthenticatedStateChanged;
+            
+
+            InitializeTargetChannel();
+
 
             return Task.CompletedTask;
         }
@@ -81,14 +74,14 @@ namespace Actions.Twitch
 
         private async Task HandleMessageReceivedInternal(ITwitchService service, TwitchMessage message)
         {
-            if (_channel != null && message.Channel.Id != _channel.Id)
+            if (_channel == null || message.Channel.Id != _channel.Id)
             {
                 return;
             }
 
-            MainThreadInvoker.Invoke(() => Messaged?.Invoke(
+            MainThreadInvoker.Invoke((multiplexedPlatform, multiplexedMessage) => Messaged?.Invoke(multiplexedPlatform, multiplexedMessage),
                 MultiplexedPlatformService.From<ITwitchService, TwitchChannel, TwitchMessage>(service), 
-                MultiplexedMessage.From<TwitchMessage, TwitchChannel>(message)));
+                MultiplexedMessage.From<TwitchMessage, TwitchChannel>(message));
             IActionUser? user = await GetUser(message.Sender.UserName);
             if (user is null)
                 return;
@@ -167,6 +160,11 @@ namespace Actions.Twitch
         
         private void OnConfigUpdated(Config config)
         {
+            if (_twitchService.LoggedIn)
+            {
+                return;
+            }
+            
             var channelId = config.ChannelId;
             if (channelId != _channel?.Id)
             {
@@ -180,6 +178,34 @@ namespace Actions.Twitch
             {
                 _siraLog.Debug("No change");
             }
+        }
+        
+        private void TwitchServiceOnOnAuthenticatedStateChanged(ITwitchService obj)
+        {
+            InitializeTargetChannel();
+        }
+
+        private void InitializeTargetChannel()
+        {
+            if (!_twitchService.LoggedIn || _channel != null)
+            {
+                return;
+            }
+
+            Channels = _twitchChannelManagementService.GetAllActiveChannels();
+
+            if (_config.ChannelId != null)
+            {
+                _channel = Channels.FirstOrDefault(twitchChannel => twitchChannel.Id == _config.ChannelId);
+            }
+
+            if (_channel == null)
+            {
+                _channel = (TwitchChannel?)_twitchService.DefaultChannel ?? Channels.FirstOrDefault();
+                _config.ChannelId = _channel?.Id;
+            }
+
+            _siraLog.Debug($"Initialized target channel to: {_channel?.Name ?? "None"}");
         }
         
         private void TwitchChannelManagementServiceOnChannelsUpdated(object sender, TwitchChannelsUpdatedEventArgs e)
